@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Calendar } from "@/components/archive/Calendar";
+import { ChatPanel } from "@/components/archive/ChatPanel";
+import { DailySummary } from "@/components/archive/DailySummary";
 import { PostCard } from "@/components/archive/PostCard";
 import { toISODate } from "@/lib/dates";
 import { mockEtlRuns, mockPosts, mockTopics } from "@/lib/mock-data";
@@ -16,6 +18,11 @@ export default function ArchivePage() {
 
   const runForDate = mockEtlRuns.find((r) => r.run_date === selectedDate);
   const isRedditOnly = runForDate?.twitter_ok === false;
+
+  const selectedTopics = useMemo(
+    () => mockTopics.filter((t) => selectedTopicIds.includes(t.id)),
+    [selectedTopicIds],
+  );
 
   const posts = useMemo(
     () =>
@@ -87,9 +94,10 @@ export default function ArchivePage() {
           </div>
         )}
 
-        <div className="mt-4 rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/50">
-          RAG summary coming soon — this banner will show an AI-generated summary of the day&apos;s
-          posts once the RAG chat pipeline (#18) is wired up.
+        <div className="mt-4 flex flex-col gap-3">
+          {selectedTopics.map((topic) => (
+            <DailySummary key={topic.id} topicId={topic.id} topicName={topic.name} date={selectedDate} />
+          ))}
         </div>
 
         <div className="mt-6 flex flex-col gap-3">
@@ -98,6 +106,8 @@ export default function ArchivePage() {
             <PostCard key={post.post_id} post={post} />
           ))}
         </div>
+
+        <ChatPanel topics={selectedTopics} date={selectedDate} />
       </main>
     </div>
   );

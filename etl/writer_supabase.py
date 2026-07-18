@@ -23,6 +23,7 @@ def write_post_vectors(
             "platform": post.platform,
             "scraped_date": run_date.isoformat(),
             "text": text,
+            "url": post.url,
             "embedding": embedding,
         }
         for post, text, embedding in zip(posts, texts, embeddings)
