@@ -5,6 +5,14 @@ node_modules/
 .env.local
 .env.*.local
 
+# Next.js
+web/.next/
+web/out/
+web/build/
+web/*.tsbuildinfo
+web/next-env.d.ts
+.vercel
+
 # OS
 .DS_Store
 Thumbs.db
