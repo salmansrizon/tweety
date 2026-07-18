@@ -33,3 +33,22 @@ export interface EtlRun {
   posts_scraped: number | null;
   error_message: string | null;
 }
+
+export interface Post {
+  post_id: string;
+  topic_id: string;
+  platform: Platform;
+  creator_handle: string;
+  scraped_date: string; // YYYY-MM-DD
+  text: string;
+  url: string;
+  engagement_score: number;
+  // Twitter metrics
+  views?: number;
+  likes?: number;
+  reposts?: number;
+  replies?: number;
+  // Reddit metrics
+  score?: number;
+  num_comments?: number;
+}

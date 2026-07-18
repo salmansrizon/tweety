@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { mockEtlRuns, mockSettings } from "@/lib/mock-data";
+import { mockRecentEtlRuns, mockSettings } from "@/lib/mock-data";
 
 function StatusIcon({ ok }: { ok: boolean | null }) {
   if (ok === null) return <span className="text-white/30">–</span>;
@@ -126,7 +126,7 @@ export default function SettingsPage() {
               </tr>
             </thead>
             <tbody>
-              {mockEtlRuns.map((run) => (
+              {mockRecentEtlRuns.map((run) => (
                 <tr key={run.id} className="border-b border-white/5 last:border-0">
                   <td className="px-4 py-2">{run.run_date}</td>
                   <td className="px-4 py-2">

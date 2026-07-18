@@ -13,7 +13,7 @@ export default function LoginPage() {
     // Prototype: real Supabase Auth (supabase.auth.signInWithPassword) is
     // wired once a live project + credentials exist. For now this just
     // demonstrates the flow into the gated dashboard shell.
-    router.push("/dashboard/topics");
+    router.push("/dashboard/archive");
   }
 
   return (
