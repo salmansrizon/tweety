@@ -1,3 +1,11 @@
+# Requires these repo secrets (see .env.example): SUPABASE_URL, SUPABASE_KEY,
+# GEMINI_API_KEY, OPENROUTER_API_KEY, GCP_SA_KEY, REDDIT_CLIENT_ID,
+# REDDIT_CLIENT_SECRET.
+#
+# Smoke test after first setting secrets: trigger a manual run via
+# workflow_dispatch and confirm at least one row lands in BigQuery
+# (`bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM archive.posts'`)
+# and in Supabase `post_vectors`.
 name: ETL
 
 on:
@@ -14,9 +22,9 @@ jobs:
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
       REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
       REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-sa-key.json
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +38,32 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install --with-deps chromium
 
-      # TODO(#15): wire up the full step sequence -- Cookie Expiry Alert
-      # ::error:: annotation, smoke test verification, etc.
+      - name: Write GCP service account key
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: printf '%s' "$GCP_SA_KEY" > "$GOOGLE_APPLICATION_CREDENTIALS"
+
       - name: Run ETL
-        run: python etl/runner.py
+        id: etl
+        run: |
+          set +e
+          python etl/runner.py
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      # runner.py exits 2 specifically for a Twitter Cookie Expiry Alert (see
+      # etl/runner.py:COOKIE_EXPIRED_EXIT_CODE). Reddit-Only Mode is a
+      # successful run (ADR-0001) -- the job stays green -- but this
+      # annotation surfaces the alert to the repo owner.
+      - name: Cookie Expiry Alert
+        if: steps.etl.outputs.exit_code == '2'
+        run: |
+          echo "::error title=Twitter Cookie Expired::Twitter session cookies expired -- Twitter scraping was skipped and Reddit-Only Mode completed successfully. Update credentials on the CMS Settings page."
+
+      - name: Fail on unexpected ETL error
+        if: steps.etl.outputs.exit_code != '0' && steps.etl.outputs.exit_code != '2'
+        run: exit 1
+
+      - name: Remove GCP service account key
+        if: always()
+        run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
