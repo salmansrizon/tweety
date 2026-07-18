@@ -181,3 +181,13 @@ class FakeLoginWallTwitterPage:
         if selector == "text=Log in":
             return _FakeLocator(1)
         return _FakeLocator(0)
+
+
+class FakeCrashingTwitterPage:
+    """Simulates a non-cookie scrape failure, e.g. a Playwright navigation timeout."""
+
+    def goto(self, _url):
+        raise TimeoutError("Timeout 30000ms exceeded navigating to twitter.com/search")
+
+    def locator(self, selector: str) -> _FakeLocator:
+        return _FakeLocator(0)

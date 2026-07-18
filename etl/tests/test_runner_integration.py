@@ -4,6 +4,7 @@ from etl import runner
 from etl.models import Creator, RunConfig, Topic
 from etl.tests.fakes import (
     FakeBigQueryClient,
+    FakeCrashingTwitterPage,
     FakeGeminiClient,
     FakeLoginWallTwitterPage,
     FakeRedditClient,
@@ -112,6 +113,44 @@ def test_cookie_expiry_aborts_twitter_but_reddit_still_completes():
     # Reddit-Only Mode: the Reddit post is still ingested despite the Twitter failure.
     assert result.posts_scraped == 1
     assert len(supabase.store["post_vectors"]) == 1
+
+
+def test_non_cookie_twitter_scrape_failure_still_lets_reddit_complete():
+    """A general Twitter scrape exception (Playwright timeout, selector
+    failure, etc.) must not crash the whole run -- only CookieExpiredError
+    got caught before this test was added, so anything else propagated
+    uncaught, skipped Reddit, and left the etl_runs row half-written."""
+    supabase = FakeSupabaseClient()
+    bigquery = FakeBigQueryClient()
+    gemini = FakeGeminiClient()
+    reddit = FakeRedditClient({"LocalLLaMA": [_fixture_submission()]})
+
+    topic = Topic(id="t1", name="AI Agents", is_active=True)
+    creators = [
+        Creator(id="c1", handle="@sama", platform="twitter", topic_id="t1"),
+        Creator(id="c2", handle="r/LocalLLaMA", platform="reddit", topic_id="t1"),
+    ]
+    config = RunConfig(topics=[topic], creators=creators, credentials=None)
+
+    result = runner.run(
+        supabase,
+        bigquery,
+        gemini,
+        config,
+        twitter_page=FakeCrashingTwitterPage(),
+        reddit_client=reddit,
+        today=TODAY,
+    )
+
+    assert result.twitter_ok is False
+    assert "timeout" in result.error_message.lower()
+    assert result.reddit_ok is True
+    assert result.posts_scraped == 1
+
+    etl_runs = supabase.store["etl_runs"]
+    assert len(etl_runs) == 1
+    assert etl_runs[0]["finished_at"] is not None
+    assert etl_runs[0]["error_message"] == result.error_message
 
 
 def test_retention_pruning_removes_rows_older_than_30_days():

@@ -1,4 +1,5 @@
 import os
+import signal
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -12,10 +13,22 @@ from .models import RunConfig
 from .normalizer import normalize_text
 from .scorer import filter_original_posts, top_n_per_creator
 from .scrapers.reddit import scrape_reddit
-from .scrapers.twitter import CookieExpiredError, scrape_twitter
+from .scrapers.twitter import scrape_twitter
 
 RETENTION_DAYS = 30
 COOKIE_EXPIRED_EXIT_CODE = 2
+SIGTERM_EXIT_CODE = 143  # 128 + SIGTERM(15), the conventional shell exit code
+
+
+class GracefulShutdown(Exception):
+    """Raised from the SIGTERM handler so `finally: browser.close()` still runs
+    before the process exits, instead of Playwright's Chromium subprocess being
+    orphaned when GitHub Actions kills the job at the 25-minute budget cap
+    (ADR-0001)."""
+
+
+def _handle_sigterm(signum, frame) -> None:
+    raise GracefulShutdown()
 
 
 @dataclass
@@ -68,8 +81,10 @@ def run(
     if twitter_creators:
         try:
             posts.extend(scrape_twitter(twitter_page, twitter_creators, since_date))
-        except CookieExpiredError as e:
-            # Twitter aborts; Reddit still proceeds below (Reddit-Only Mode).
+        except Exception as e:
+            # Covers CookieExpiredError and any other scrape failure (#14) --
+            # Twitter aborts, Reddit still proceeds below (Reddit-Only Mode),
+            # and the run finishes normally so etl_runs is fully populated.
             result.twitter_ok = False
             _append_error(result, str(e))
 
@@ -112,6 +127,8 @@ def run(
 
 
 def main() -> None:
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
     supabase_client = config_mod.build_client()
     run_config = config_mod.fetch_run_config(supabase_client)
 
@@ -144,6 +161,9 @@ def main() -> None:
             result = run(
                 supabase_client, bigquery_client, gemini_client, run_config, twitter_page, reddit_client
             )
+        except GracefulShutdown:
+            print("Received SIGTERM -- closed the browser and exiting.", file=sys.stderr)
+            sys.exit(SIGTERM_EXIT_CODE)
         finally:
             browser.close()
 
