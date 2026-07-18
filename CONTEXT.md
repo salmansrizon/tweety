@@ -59,10 +59,16 @@ The configurable period for which Posts are kept across all storage layers. Curr
 Supabase free tier pauses the database after 7 days of inactivity. The daily ETL run acts as the keep-alive under normal operation. If the ETL is skipped for 7+ consecutive days, the user must manually un-pause via the Supabase dashboard before the next run. No automated keep-alive job is used.
 
 **Cookie Expiry Alert**
-The event triggered when Playwright detects a Twitter login wall (cookie expiration). The ETL aborts the Twitter scraping phase, logs `last_run_status = "Twitter Cookie Expired"` to Supabase `app_settings`, and emits a GitHub Actions email notification. Reddit scraping continues unaffected.
+The event triggered when Playwright detects a Twitter login wall (cookie expiration). The ETL aborts the Twitter scraping phase, logs `last_run_status = "Twitter Cookie Expired"` to Supabase `app_settings` and writes to the ETL Log Table, and emits a GitHub Actions email notification. Reddit scraping continues unaffected.
+
+**ETL Log Table**
+The `etl_runs` table in Supabase used to log the history, execution times, success status, scraped counts, and errors of daily ETL Pipeline runs. It is used to surface a status panel in the CMS and to render warnings on days with Reddit-Only Mode.
+
+**Playwright Stealth**
+The anti-bot hardening suite used in the ETL Pipeline to bypass detection. Includes UA rotation, randomized viewports, delays between scrolls, and standard stealth finger-print patching.
 
 **Reddit-Only Mode**
-A degraded but valid ETL run state: Twitter scraping was skipped (due to timeout or Cookie Expiry Alert), Reddit completed successfully. Logged to `app_settings.last_run_status`. Not an error — the Archive simply has no Twitter Posts for that day.
+A degraded but valid ETL run state: Twitter scraping was skipped (due to timeout or Cookie Expiry Alert), Reddit completed successfully. Logged to `app_settings.last_run_status` and `etl_runs`. Not an error — the Archive simply has no Twitter Posts for that day.
 
 **CMS**
 The Next.js web portal. The user interface for configuring Topics, Creators, and credentials, and for browsing the Archive and querying via RAG Chat.
